@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 import librosa
-from audio_processing import AudioProcessor
+from src.audio_processing import AudioProcessor
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
@@ -13,6 +13,19 @@ class StyleAnalyzer:
         self.audio_processor = AudioProcessor()
         self.features_cache = {}
         self.style_vectors = {}
+
+    def _make_json_serializable(self, obj):
+        """Convert objects to JSON serializable types"""
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, np.number):
+            return float(obj)
+        elif isinstance(obj, dict):
+            return {k: self._make_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._make_json_serializable(i) for i in obj]
+        else:
+            return obj
 
     def extract_features_from_directory(self, directory, artist_name):
         """Extract features from all audio files in a directory"""
@@ -45,8 +58,11 @@ class StyleAnalyzer:
         output_path = f"data/processed_audio/{artist_name}_features.json"
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
+        # Ensure features are JSON serializable
+        serializable_features = self._make_json_serializable(features_list)
+
         with open(output_path, 'w') as f:
-            json.dump(features_list, f)
+            json.dump(serializable_features, f)
 
         print(f"Saved features for {artist_name} to {output_path}")
 
@@ -96,14 +112,18 @@ class StyleAnalyzer:
 
         # Store the style vector
         self.style_vectors[artist_name] = {
-            'vector': style_vector.tolist(),
+            'vector': style_vector.tolist(),  # Convert to list for JSON
             'feature_names': analysis_df.columns.tolist()
         }
 
         # Save style vector to disk
         output_path = f"data/processed_audio/{artist_name}_style_vector.json"
+
+        # Ensure the vector is JSON serializable
+        serializable_vector = self._make_json_serializable(self.style_vectors[artist_name])
+
         with open(output_path, 'w') as f:
-            json.dump(self.style_vectors[artist_name], f)
+            json.dump(serializable_vector, f)
 
         print(f"Created style vector for {artist_name}")
         return style_vector
@@ -121,7 +141,7 @@ class StyleAnalyzer:
         similarity = np.dot(vector1, vector2) / (np.linalg.norm(vector1) * np.linalg.norm(vector2))
 
         print(f"Similarity between {artist1} and {artist2}: {similarity:.2f}")
-        return similarity
+        return float(similarity)  # Ensure it's a Python float
 
 
 if __name__ == "__main__":
